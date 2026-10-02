@@ -4,6 +4,13 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
+
+IS_PAUSED = True
+
+if IS_PAUSED:
+    st.title("停止中")
+    st.stop()  # ここでプログラムの実行を停止します（スプレッドシート連携なども動かなくなります）
+
 # ---------------------------------------------------------
 # 0. ページ設定
 # ---------------------------------------------------------
