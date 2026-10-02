@@ -1,0 +1,15 @@
+# 仮想環境（絶対除外）
+.movie_rating_venv/
+movie_rating_venv/
+env/
+
+# Streamlitのローカル秘密情報（絶対除外）
+.streamlit/secrets.toml
+
+# Pythonのキャッシュファイル（除外推奨）
+__pycache__/
+*.py[cod]
+
+# OS固有の不要ファイル
+.DS_Store
+Thumbs.db
