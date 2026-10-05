@@ -5,7 +5,7 @@ import hashlib
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-IS_PAUSED = False
+IS_PAUSED = True
 
 if IS_PAUSED:
     st.title("停止中")
