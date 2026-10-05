@@ -1,10 +1,11 @@
 import json
 import datetime
 import streamlit as st
+import hashlib
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-IS_PAUSED = True
+IS_PAUSED = False
 
 if IS_PAUSED:
     st.title("停止中")
@@ -50,6 +51,14 @@ for m_key, details in movie_data.items():
             all_genres.add(genre.strip())
 
 genres = ["すべて"] + sorted(list(all_genres))
+
+
+def hash_student_id(raw_id, salt_key):
+    """学籍番号を不可逆なハッシュIDに変換"""
+    if not raw_id:
+        return ""
+    clean_id = raw_id.strip().lower()
+    return hashlib.sha256(f"{clean_id}_{salt_key}".encode('utf-8')).hexdigest()[:12]
 
 # ---------------------------------------------------------
 # カウンター・リセット関連関数
@@ -105,7 +114,7 @@ def update_rating_from_sidebar(movie_id, movie_title, sb_key):
 # ---------------------------------------------------------
 # データ送信処理用関数
 # ---------------------------------------------------------
-def submit_data(user_id, ratings):
+def submit_data(hashed_id, ratings):
     with st.spinner("データをスプレッドシートへ送信中... しばらくお待ちください ⏳"):
         conn = st.connection("gsheets", type=GSheetsConnection)
         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
@@ -116,7 +125,7 @@ def submit_data(user_id, ratings):
         new_rows = []
         for m_id, item in ratings.items():
             new_rows.append({
-                "user_id": user_id,
+                "user_id": hashed_id,
                 "movie_id": m_id,
                 "movie_title": item["title"],
                 "rating": item["rating"],
@@ -158,7 +167,8 @@ def confirm_submission_dialog(user_id, ratings):
     col_yes, col_no = st.columns(2)
     with col_yes:
         if st.button("はい、送信します", type="primary", use_container_width=True):
-            submit_data(user_id, ratings)
+            hashed_id = hash_student_id(user_id, st.secrets["connections"]["gsheets"]["salt_key"])
+            submit_data(hashed_id, ratings)
             st.session_state.show_completion_dialog = True
             st.rerun()
             
@@ -174,7 +184,7 @@ if st.session_state.get("show_completion_dialog", False):
 # サイドバー：評価状況 & 送信エリア
 # ---------------------------------------------------------
 with st.sidebar:
-    st.header("📊 あなたの評価状況")
+    st.header("あなたの評価状況")
     
     if st.session_state.get("submitted", False):
         st.success("評価を送信しました！ご協力ありがとうございました。")
@@ -203,7 +213,7 @@ with st.sidebar:
     st.divider()
 
     if total_count > 0:
-        st.subheader("📝 評価済みの作品一覧・変更")
+        st.subheader("評価済みの作品一覧・変更")
         
         for m_id, item in reversed(list(ratings_dict.items())):
             movie_name = item["title"]
@@ -243,26 +253,36 @@ with st.sidebar:
 # ---------------------------------------------------------
 # メイン画面
 # ---------------------------------------------------------
-st.title("映画の視聴履歴収集アプリ")
+st.title("映画の視聴履歴収集")
 
 st.info("""
 **【ご協力のおねがい】**  
 検索やジャンル絞り込みを使い、見たことある映画に評価（★1〜5）をつけてください。\n
-評価値の基準
+評価はできる限り多くしていただけると助かりますが、少なくても以下の数だけ評価していただきたいです。
+
+**評価値の個数**
+- 高評価(★5, ★4): 12個
+- 中評価(★3): 6個
+- 低評価(★2, ★1): 4個
+
+
+**評価値の基準**
 - (★5): とても満足できた
 - (★4): 満足できた
 - (★3): 普通だった
 - (★2): やや期待外れだった
 - (★1): 期待外れだった   
-\n評価値の変更はサイドバーで行えます。作業終了後は「評価送信」ボタンを押して結果を送信してください\n
-「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。「ジャンルで絞り込み」は自動で反映されます。
+
+評価値の変更はサイドバーでも行えます。評価の削除は★マークをもう一度押すかサイドバーでも行えます。作業終了後は「評価送信」ボタンを押して結果を送信してください\n
+「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。「ジャンルで絞り込み」は変更後に自動で反映されます。
+
 """)
 
 main_top_col1, main_top_col2 = st.columns([3, 1])
 with main_top_col1:
-    st.subheader("🔍 映画を探して評価する")
+    st.subheader("映画を探して評価する")
 with main_top_col2:
-    if st.button("🚀 評価送信（確認へ）", type="primary", use_container_width=True, key="main_top_submit"):
+    if st.button("評価送信（確認へ）", type="primary", use_container_width=True, key="main_top_submit"):
         if not st.session_state.get("sidebar_user_id", "").strip():
             st.error("サイドバーでユーザーIDを入力してください。")
         elif total_count == 0:
@@ -285,7 +305,7 @@ with col_search_input:
 
 with col_search_btn:
     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-    search_clicked = st.button("🔍 検索", use_container_width=True, type="primary")
+    search_clicked = st.button("検索", use_container_width=True, type="primary")
 
 if search_clicked or (search_input_val != st.session_state.search_kw and search_input_val != ""):
     st.session_state.search_kw = search_input_val
@@ -318,7 +338,7 @@ for m_id, details in movie_data.items():
 
 display_movies = filtered_movies[:st.session_state.display_limit]
 
-st.subheader(f"📋 映画一覧（該当: {len(filtered_movies)}件 / 表示中: {len(display_movies)}件）")
+st.subheader(f"映画一覧（該当: {len(filtered_movies)}件 / 表示中: {len(display_movies)}件）")
 
 if not filtered_movies:
     st.warning("該当する映画が見つかりませんでした。")
