@@ -5,7 +5,7 @@ import hashlib
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-IS_PAUSED = True
+IS_PAUSED = False
 
 if IS_PAUSED:
     st.title("停止中")
@@ -261,8 +261,8 @@ st.info("""
 評価はできる限り多くしていただけると助かりますが、少なくても以下の数だけ評価していただきたいです。
 
 **評価値の個数**
-- 高評価(★5, ★4): 12個
-- 中評価(★3): 6個
+- 高評価(★5, ★4): 11個
+- 中評価(★3):5 個
 - 低評価(★2, ★1): 4個
 
 
