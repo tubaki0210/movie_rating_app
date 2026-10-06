@@ -208,7 +208,7 @@ with st.sidebar:
 
     st.divider()
 
-    user_id = st.text_input("学籍番号", placeholder="例: al21114", key="sidebar_user_id")
+    user_id = st.text_input("学籍番号(alの部分は小文字。文字はすべて半角)", placeholder="例: al21114", key="sidebar_user_id")
 
     st.divider()
 
