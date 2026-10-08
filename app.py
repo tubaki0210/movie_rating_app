@@ -168,7 +168,8 @@ def confirm_submission_dialog(user_id, ratings):
     with col_yes:
         if st.button("はい、送信します", type="primary", use_container_width=True):
             # hashed_id = hash_student_id(user_id, st.secrets["connections"]["gsheets"]["salt_key"])
-            submit_data(user_id, ratings)
+            clean_id = user_id.strip().lower()
+            submit_data(clean_id, ratings)
             st.session_state.show_completion_dialog = True
             st.rerun()
             
