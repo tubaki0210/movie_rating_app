@@ -167,8 +167,8 @@ def confirm_submission_dialog(user_id, ratings):
     col_yes, col_no = st.columns(2)
     with col_yes:
         if st.button("はい、送信します", type="primary", use_container_width=True):
-            hashed_id = hash_student_id(user_id, st.secrets["connections"]["gsheets"]["salt_key"])
-            submit_data(hashed_id, ratings)
+            # hashed_id = hash_student_id(user_id, st.secrets["connections"]["gsheets"]["salt_key"])
+            submit_data(user_id, ratings)
             st.session_state.show_completion_dialog = True
             st.rerun()
             
@@ -208,7 +208,7 @@ with st.sidebar:
 
     st.divider()
 
-    user_id = st.text_input("学籍番号(alの部分は小文字。文字はすべて半角)", placeholder="例: al21114", key="sidebar_user_id")
+    user_id = st.text_input("学籍番号(alの部分は小文字)", placeholder="例: al21114", key="sidebar_user_id")
 
     st.divider()
 
