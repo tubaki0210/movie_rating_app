@@ -11,7 +11,7 @@ import time
 IS_PAUSED = True
 
 if IS_PAUSED:
-    st.title("停止中")
+    st.title("修正のため一時停止中")
     st.stop()  
 
 DIAPLAY_NUM_MAX = 100
