@@ -3,13 +3,12 @@ import datetime
 import streamlit as st
 import hashlib
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 from pathlib import Path
 import random 
 import time
+from supabase import create_client, Client
 
-IS_PAUSED = True
-
+IS_PAUSED = False
 if IS_PAUSED:
     st.title("修正のため一時停止中")
     st.stop()  
@@ -153,50 +152,35 @@ def update_rating_from_sidebar(movie_id, movie_title, sb_key):
 
 def submit_data(hashed_id, ratings):
     with st.spinner("データを送信中... しばらくお待ちください"):
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 新しい行のデータを作成
-        new_rows = []
-        for movie_id, item in ratings.items():
-            new_rows.append({
-                "user_id": hashed_id,
-                "movie_id": movie_id,
-                "movie_title": item["title"],
-                "rating": item["rating"],
-                "timestamp": now
-            })
-        new_df = pd.DataFrame(new_rows)
-        
-        # 競合対策として、最大3回まで読み込み〜書き込みをリトライする仕組み
-        max_retries = 3
-        success = False
-        
-        for attempt in range(max_retries):
-            try:
-                # 1. 【最重要】書き込みの直前ギリギリで最新のデータを取得する
-                existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
-                
-                # 2. 既存データと新しいデータを結合
-                updated_df = pd.concat([existing_data, new_df], ignore_index=True)
-                
-                # 3. スプレッドシートを更新
-                conn.update(spreadsheet=sheet_url, data=updated_df)
-                
-                success = True
-                break # 成功したらループを抜ける
-                
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    # すべて失敗した場合
-                    raise e
-                # 失敗した場合は少し待ってからリトライ（他の人の書き込みが終わるのを少し待つ）
-                time.sleep(1)
-        
-        if not success:
-            st.error("データの送信に失敗しました。もう一度送信ボタンを押してください。")
+        try:
+            # secrets.toml から Supabase の接続情報を取得
+            supabase_url = st.secrets["supabase"]["url"]
+            supabase_key = st.secrets["supabase"]["key"]
+            
+            # Supabase クライアントの初期化
+            supabase: Client = create_client(supabase_url, supabase_key)
+            
+            # now = datetime.datetime.now().isoformat()
+            
+            # 挿入するデータ（行のリスト）を作成
+            rows_to_insert = []
+            for movie_id, item in ratings.items():
+                rows_to_insert.append({
+                    "user_id": hashed_id,
+                    "movie_id": int(movie_id),
+                    "title": item["title"],
+                    "rating": int(item["rating"]),
+                })
+            
+            # Supabaseの 'ratings' テーブルに一括インサート（同時送信に強い）
+            response = supabase.table("ratings").insert(rows_to_insert).execute()
+            
+            # 成功時の処理
+            st.session_state.show_completion_dialog = True
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"データの送信に失敗しました。もう一度お願いします。: {e}")
 # ---------------------------------------------------------
 # モーダルダイアログ定義
 # ---------------------------------------------------------
