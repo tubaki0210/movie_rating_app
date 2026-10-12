@@ -133,10 +133,10 @@ def submit_data(hashed_id, ratings):
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         new_rows = []
-        for m_id, item in ratings.items():
+        for title, item in ratings.items():
             new_rows.append({
                 "user_id": hashed_id,
-                "movie_id": m_id,
+                "movie_id": item["movie_id"],
                 "movie_title": item["title"],
                 "rating": item["rating"],
                 # "timestamp": now
