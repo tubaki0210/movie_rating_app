@@ -4,6 +4,7 @@ import streamlit as st
 import hashlib
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+from pathlib import Path
 
 IS_PAUSED = False
 
@@ -11,7 +12,7 @@ if IS_PAUSED:
     st.title("停止中")
     st.stop()  
 
-DIAPLAY_NUM_MAX = 50
+DIAPLAY_NUM_MAX = 100
 
 # ---------------------------------------------------------
 # 0. ページ設定
@@ -42,6 +43,14 @@ if "search_kw" not in st.session_state:
 # ---------------------------------------------------------
 with open('movie.json', 'r', encoding='utf-8') as f:
     movie_data = json.load(f)
+
+style_data_path = Path(__file__).resolve().parent.parent / "movie_keyTitle_v4.json"
+with style_data_path.open(encoding="utf-8") as f:
+    style_data = json.load(f)
+
+for movie_key, details in movie_data.items():
+    title = details.get("title", movie_key)
+    details["style"] = style_data.get(title, {}).get("style", "その他")
 
 # ジャンルの抽出
 all_genres = set()
@@ -257,11 +266,13 @@ with st.sidebar:
 st.title("映画の視聴履歴収集")
 
 st.info("""
-**【ご協力のおねがい】**  
-検索やジャンル絞り込みを使い、見たことある映画に評価（★1〜5）をつけてください。\n
-評価はできる限り多くしていただけると助かりますが、少なくても以下の数だけ評価していただきたいです。
+**【ご協力のおねがい】**\n 
+始めにサイドバーで学籍番号を入力しておいてください。\n 
+検索やジャンル・邦画/洋画の絞り込みを使い、見たことある映画に評価（★1〜5）をつけてください。\n
+評価はできる限り多くしていただけると助かりますが、少なくても以下の数だけ評価していただきたいです。\n
+もし、必要数だけ評価できなくても、結果は送信してください。
 
-**評価値の個数**
+**評価値の個数(合計20個)**
 - 高評価(★5, ★4): 11個
 - 中評価(★3):5 個
 - 低評価(★2, ★1): 4個
@@ -275,7 +286,7 @@ st.info("""
 - (★1): 期待外れだった   
 
 評価値の変更はサイドバーでも行えます。評価の削除は★マークをもう一度押すかサイドバーでも行えます。作業終了後は「評価送信」ボタンを押して結果を送信してください\n
-「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。「ジャンルで絞り込み」は変更後に自動で反映されます。
+「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。ジャンルと邦画・洋画の絞り込みは変更後に自動で反映されます。
 
 """)
 
@@ -296,10 +307,13 @@ st.divider()
 # ---------------------------------------------------------
 # 検索・絞り込みエリア
 # ---------------------------------------------------------
-col_genre, col_search_input, col_search_btn = st.columns([2, 3, 1])
+col_genre, col_style, col_search_input, col_search_btn = st.columns([2, 2, 3, 1])
 
 with col_genre:
     selected_genre = st.selectbox("ジャンルで絞り込み", genres)
+
+with col_style:
+    selected_style = st.selectbox("邦画・洋画で絞り込み", ["すべて", "邦画", "洋画"])
 
 with col_search_input:
     search_input_val = st.text_input("映画タイトルで検索", value=st.session_state.search_kw, placeholder="例: 千尋、ハリー")
@@ -318,7 +332,7 @@ search_kw = st.session_state.search_kw
 # ---------------------------------------------------------
 # フィルタ条件変更時のリセット判定
 # ---------------------------------------------------------
-filter_state_key = f"{selected_genre}_{search_kw}"
+filter_state_key = f"{selected_genre}_{selected_style}_{search_kw}"
 if st.session_state.get("last_filter") != filter_state_key:
     st.session_state.display_limit = DIAPLAY_NUM_MAX
     st.session_state.last_filter = filter_state_key
@@ -330,11 +344,13 @@ filtered_movies = []
 for m_id, details in movie_data.items():
     title = details.get("title", "")
     raw_genres = [g.strip() for g in details.get("genre", "").split(",") if g.strip()]
+    movie_style = details.get("style", "その他")
     
     genre_match = (selected_genre == "すべて") or (selected_genre in raw_genres)
+    style_match = (selected_style == "すべて") or (movie_style in [selected_style, "その他"])
     search_match = (search_kw == "") or (search_kw.lower() in title.lower())
     
-    if genre_match and search_match:
+    if genre_match and style_match and search_match:
         filtered_movies.append({"movie_id": m_id, "title": title})
 
 display_movies = filtered_movies[:st.session_state.display_limit]
