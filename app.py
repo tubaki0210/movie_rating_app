@@ -153,16 +153,10 @@ def update_rating_from_sidebar(movie_id, movie_title, sb_key):
 def submit_data(hashed_id, ratings):
     with st.spinner("データを送信中... しばらくお待ちください"):
         try:
-            # secrets.toml から Supabase の接続情報を取得
             supabase_url = st.secrets["supabase"]["url"]
             supabase_key = st.secrets["supabase"]["key"]
-            
-            # Supabase クライアントの初期化
             supabase: Client = create_client(supabase_url, supabase_key)
-            
-            # now = datetime.datetime.now().isoformat()
-            
-            # 挿入するデータ（行のリスト）を作成
+                        
             rows_to_insert = []
             for movie_id, item in ratings.items():
                 rows_to_insert.append({
@@ -172,15 +166,18 @@ def submit_data(hashed_id, ratings):
                     "rating": int(item["rating"]),
                 })
             
-            # Supabaseの 'ratings' テーブルに一括インサート（同時送信に強い）
-            response = supabase.table("ratings").insert(rows_to_insert).execute()
+            # .upsert() を使用し、競合が発生した場合は上書きする設定にする
+            # on_conflict="user_id,movie_id" でどの列が重複判定の基準になるかを指定
+            response = supabase.table("ratings").upsert(
+                rows_to_insert, 
+                on_conflict="user_id,movie_id"
+            ).execute()
             
-            # 成功時の処理
             st.session_state.show_completion_dialog = True
             st.rerun()
             
         except Exception as e:
-            st.error(f"データの送信に失敗しました。もう一度お願いします。: {e}")
+            st.error(f"データの送信に失敗しました: {e}")
 # ---------------------------------------------------------
 # モーダルダイアログ定義
 # ---------------------------------------------------------
