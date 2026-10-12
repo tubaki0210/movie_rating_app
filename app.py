@@ -128,14 +128,36 @@ def update_rating_from_sidebar(movie_id, movie_title, sb_key):
 # ---------------------------------------------------------
 # データ送信処理用関数
 # ---------------------------------------------------------
+# def submit_data(hashed_id, ratings):
+#     with st.spinner("データを送信中... しばらくお待ちください"):
+#         conn = st.connection("gsheets", type=GSheetsConnection)
+#         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        
+#         existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
+#         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+#         new_rows = []
+#         for movie_id, item in ratings.items():
+#             new_rows.append({
+#                 "user_id": hashed_id,
+#                 "movie_id": movie_id,
+#                 "movie_title": item["title"],
+#                 "rating": item["rating"],
+#                 "timestamp": now
+#             })
+        
+#         new_df = pd.DataFrame(new_rows)
+#         updated_df = pd.concat([existing_data, new_df], ignore_index=True)
+#         conn.update(spreadsheet=sheet_url, data=updated_df)
+
 def submit_data(hashed_id, ratings):
     with st.spinner("データを送信中... しばらくお待ちください"):
         conn = st.connection("gsheets", type=GSheetsConnection)
         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         
-        existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # 1. 追加する行のデータをリストで作成
         new_rows = []
         for movie_id, item in ratings.items():
             new_rows.append({
@@ -147,8 +169,23 @@ def submit_data(hashed_id, ratings):
             })
         
         new_df = pd.DataFrame(new_rows)
+        
+        # 2. スプレッドシートの既存データを読み込む
+        existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
+        
+        # 3. 既存データと新しいデータを結合
         updated_df = pd.concat([existing_data, new_df], ignore_index=True)
-        conn.update(spreadsheet=sheet_url, data=updated_df)
+        
+        # 4. 全体を更新する際、ワークシートを指定するか、
+        #    あるいはワークシートの末尾に追加する st.connection の標準機能を使う
+        # ※ もし st_gsheets_connection でうまく行かない場合の確実な方法として、
+        #    以下のようにワークシートを指定して上書き範囲を最小限にするか、
+        #    下記の手順を確認してください。
+        
+        conn.update(
+            spreadsheet=sheet_url,
+            data=updated_df
+        )
 
 # ---------------------------------------------------------
 # モーダルダイアログ定義
