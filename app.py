@@ -125,7 +125,7 @@ def update_rating_from_sidebar(movie_id, movie_title, sb_key):
 # データ送信処理用関数
 # ---------------------------------------------------------
 def submit_data(hashed_id, ratings):
-    with st.spinner("データをスプレッドシートへ送信中... しばらくお待ちください ⏳"):
+    with st.spinner("データを送信中... しばらくお待ちください"):
         conn = st.connection("gsheets", type=GSheetsConnection)
         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         
@@ -151,9 +151,9 @@ def submit_data(hashed_id, ratings):
 # ---------------------------------------------------------
 @st.dialog("送信完了")
 def completion_dialog():
-    st.success("評価の送信が正常に完了しました！")
-    st.write("ご協力いただき、誠にありがとうございました。")
-    st.caption("※「閉じる」を押して、ブラウザを閉じて終了してください。")
+    st.success("評価の送信が完了しました")
+    st.write("ご協力いただき、ありがとうございました。")
+    st.caption("ブラウザを閉じて終了してください。")
     
     if st.button("閉じる", type="primary", use_container_width=True):
         reset_all_ratings()
@@ -172,11 +172,11 @@ def confirm_submission_dialog(user_id, ratings):
     ])
     st.dataframe(preview_df, use_container_width=True, height=180)
     
-    st.warning("この内容でスプレッドシートへ送信します。よろしいですか？")
+    st.warning("この内容で送信します。よろしいですか？")
     
     col_yes, col_no = st.columns(2)
     with col_yes:
-        if st.button("はい、送信します", type="primary", use_container_width=True):
+        if st.button("送信する", type="primary", use_container_width=True):
             # hashed_id = hash_student_id(user_id, st.secrets["connections"]["gsheets"]["salt_key"])
             clean_id = user_id.strip().lower()
             submit_data(clean_id, ratings)
@@ -184,7 +184,7 @@ def confirm_submission_dialog(user_id, ratings):
             st.rerun()
             
     with col_no:
-        if st.button("キャンセル", use_container_width=True):
+        if st.button("送信しない", use_container_width=True):
             st.rerun()
 
 # 送信完了モーダルチェック
