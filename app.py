@@ -375,7 +375,7 @@ if not filtered_movies:
 
 # 映画リストの表示と評価UI
 for movie in display_movies:
-    c1, c2 = st.columns([3, 1])
+    c1, c2 = st.columns([1, 1])
     movie_id = movie.get("movie_id")
     title = movie.get("title")
 
@@ -398,6 +398,8 @@ for movie in display_movies:
             on_change=update_rating_from_main,
             args=(movie_id, title, star_key)
         )
+    # st.divider()
+    
 
 # --- 「もっと見る」ボタン ---
 remaining_count = len(filtered_movies) - len(display_movies)
