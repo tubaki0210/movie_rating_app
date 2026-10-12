@@ -5,6 +5,7 @@ import hashlib
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from pathlib import Path
+import random # 👈 ランダム用に追加
 
 IS_PAUSED = False
 
@@ -39,13 +40,16 @@ if "search_kw" not in st.session_state:
     st.session_state.search_kw = ""
 
 # ---------------------------------------------------------
-# 1. JSONデータの読み込み & データ準備
+# 1. JSONデータの読み込み & データ準備・ランダム順の固定化
 # ---------------------------------------------------------
 with open('movie.json', 'r', encoding='utf-8') as f:
     movie_data = json.load(f)
 
-for movie_key, details in movie_data.items():
-    title = details.get("title", movie_key)
+# セッションごとに一度だけ映画のキーをランダムにシャッフルして固定する
+if "shuffled_movie_keys" not in st.session_state:
+    keys = list(movie_data.keys())
+    random.shuffle(keys)
+    st.session_state.shuffled_movie_keys = keys
 
 # ジャンルの抽出
 all_genres = set()
@@ -177,7 +181,6 @@ def confirm_submission_dialog(user_id, ratings):
     col_yes, col_no = st.columns(2)
     with col_yes:
         if st.button("送信する", type="primary", use_container_width=True):
-            # hashed_id = hash_student_id(user_id, st.secrets["connections"]["gsheets"]["salt_key"])
             clean_id = user_id.strip().lower()
             submit_data(clean_id, ratings)
             st.session_state.show_completion_dialog = True
@@ -249,7 +252,7 @@ with st.sidebar:
                 )
 
             with sb_col2:
-                if st.button("🗑️️", key=f"del_{m_id}_{counter}", help="この評価を削除"):
+                if st.button("🗑", key=f"del_{m_id}_{counter}", help="この評価を削除"):
                     remove_single_rating(m_id)
                     st.rerun()
 
@@ -284,10 +287,10 @@ st.info("""
 - (★4): 満足できた
 - (★3): 普通だった
 - (★2): やや期待外れだった
-- (★1): 期待外れだった   
+- (★1): 期待外れだった  
 
 ・評価値の変更はサイドバーでも行えます。評価の削除は★マークをもう一度押すかサイドバーでも行えます。作業終了後は「評価送信」ボタンを押して結果を送信してください\n
-・「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。ジャンルと邦画・洋画と年代での絞り込みは変更後に自動で反映されます。\n
+・「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。ジャンルと邦画・洋画の絞り込みは変更後に自動で反映されます。\n
 ・「さらに表示する」で多く(1000件以上)表示すると、重くなりますので表示しすぎないように検索を活用してください。
 
 """)
@@ -343,10 +346,12 @@ if st.session_state.get("last_filter") != filter_state_key:
     st.session_state.last_filter = filter_state_key
 
 # ---------------------------------------------------------
-# フィルタリング処理
+# フィルタリング処理（ランダム順のキーを使用）
 # ---------------------------------------------------------
 filtered_movies = []
-for title, details in movie_data.items():
+# 👇 JSONの元の順番ではなく、シャッフルされた順序のキーでループを回す
+for title_key in st.session_state.shuffled_movie_keys:
+    details = movie_data[title_key]
     m_id = details.get("movie_id")
     title = details.get("title", "")
     raw_genres = [g.strip() for g in details.get("genre", "").split(",") if g.strip()]
