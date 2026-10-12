@@ -5,7 +5,8 @@ import hashlib
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from pathlib import Path
-import random # 👈 ランダム用に追加
+import random 
+import time
 
 IS_PAUSED = False
 
@@ -157,7 +158,7 @@ def submit_data(hashed_id, ratings):
         
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 1. 追加する行のデータをリストで作成
+        # 新しい行のデータを作成
         new_rows = []
         for movie_id, item in ratings.items():
             new_rows.append({
@@ -167,26 +168,35 @@ def submit_data(hashed_id, ratings):
                 "rating": item["rating"],
                 "timestamp": now
             })
-        
         new_df = pd.DataFrame(new_rows)
         
-        # 2. スプレッドシートの既存データを読み込む
-        existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
+        # 競合対策として、最大3回まで読み込み〜書き込みをリトライする仕組み
+        max_retries = 3
+        success = False
         
-        # 3. 既存データと新しいデータを結合
-        updated_df = pd.concat([existing_data, new_df], ignore_index=True)
+        for attempt in range(max_retries):
+            try:
+                # 1. 【最重要】書き込みの直前ギリギリで最新のデータを取得する
+                existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
+                
+                # 2. 既存データと新しいデータを結合
+                updated_df = pd.concat([existing_data, new_df], ignore_index=True)
+                
+                # 3. スプレッドシートを更新
+                conn.update(spreadsheet=sheet_url, data=updated_df)
+                
+                success = True
+                break # 成功したらループを抜ける
+                
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    # すべて失敗した場合
+                    raise e
+                # 失敗した場合は少し待ってからリトライ（他の人の書き込みが終わるのを少し待つ）
+                time.sleep(1)
         
-        # 4. 全体を更新する際、ワークシートを指定するか、
-        #    あるいはワークシートの末尾に追加する st.connection の標準機能を使う
-        # ※ もし st_gsheets_connection でうまく行かない場合の確実な方法として、
-        #    以下のようにワークシートを指定して上書き範囲を最小限にするか、
-        #    下記の手順を確認してください。
-        
-        conn.update(
-            spreadsheet=sheet_url,
-            data=updated_df
-        )
-
+        if not success:
+            st.error("データの送信に失敗しました。もう一度送信ボタンを押してください。")
 # ---------------------------------------------------------
 # モーダルダイアログ定義
 # ---------------------------------------------------------
