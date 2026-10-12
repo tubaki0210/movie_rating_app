@@ -345,7 +345,8 @@ if st.session_state.get("last_filter") != filter_state_key:
 # フィルタリング処理
 # ---------------------------------------------------------
 filtered_movies = []
-for m_id, details in movie_data.items():
+for title, details in movie_data.items():
+    m_id = details.get("movie_id")
     title = details.get("title", "")
     raw_genres = [g.strip() for g in details.get("genre", "").split(",") if g.strip()]
     movie_style = details.get("style", "その他")
