@@ -139,7 +139,7 @@ def submit_data(hashed_id, ratings):
                 "movie_id": movie_id,
                 "movie_title": item["title"],
                 "rating": item["rating"],
-                # "timestamp": now
+                "timestamp": now
             })
         
         new_df = pd.DataFrame(new_rows)
