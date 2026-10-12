@@ -56,6 +56,12 @@ for m_key, details in movie_data.items():
 
 genres = ["すべて"] + sorted(list(all_genres))
 
+all_years = sorted(
+    {details["year"] for details in movie_data.values() if details.get("year")},
+    reverse=True
+)
+years = ["すべて"] + all_years
+
 
 def hash_student_id(raw_id, salt_key):
     """学籍番号を不可逆なハッシュIDに変換"""
@@ -302,13 +308,16 @@ st.divider()
 # ---------------------------------------------------------
 # 検索・絞り込みエリア
 # ---------------------------------------------------------
-col_genre, col_style, col_search_input, col_search_btn = st.columns([2, 2, 3, 1])
+col_genre, col_style, col_year, col_search_input, col_search_btn = st.columns([2, 2, 1.5, 3, 1])
 
 with col_genre:
     selected_genre = st.selectbox("ジャンルで絞り込み", genres)
 
 with col_style:
     selected_style = st.selectbox("邦画・洋画で絞り込み", ["すべて", "邦画", "洋画"])
+
+with col_year:
+    selected_year = st.selectbox("公開年で絞り込み", years)
 
 with col_search_input:
     search_input_val = st.text_input("映画タイトルで検索", value=st.session_state.search_kw, placeholder="例: 千尋、ハリー")
@@ -327,7 +336,7 @@ search_kw = st.session_state.search_kw
 # ---------------------------------------------------------
 # フィルタ条件変更時のリセット判定
 # ---------------------------------------------------------
-filter_state_key = f"{selected_genre}_{selected_style}_{search_kw}"
+filter_state_key = f"{selected_genre}_{selected_style}_{selected_year}_{search_kw}"
 if st.session_state.get("last_filter") != filter_state_key:
     st.session_state.display_limit = DIAPLAY_NUM_MAX
     st.session_state.last_filter = filter_state_key
@@ -340,12 +349,14 @@ for m_id, details in movie_data.items():
     title = details.get("title", "")
     raw_genres = [g.strip() for g in details.get("genre", "").split(",") if g.strip()]
     movie_style = details.get("style", "その他")
+    movie_year = details.get("year", "")
     
     genre_match = (selected_genre == "すべて") or (selected_genre in raw_genres)
     style_match = (selected_style == "すべて") or (movie_style in [selected_style, "その他"])
+    year_match = (selected_year == "すべて") or (movie_year == selected_year)
     search_match = (search_kw == "") or (search_kw.lower() in title.lower())
     
-    if genre_match and style_match and search_match:
+    if genre_match and style_match and year_match and search_match:
         filtered_movies.append({"movie_id": m_id, "title": title})
 
 display_movies = filtered_movies[:st.session_state.display_limit]
