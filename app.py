@@ -8,7 +8,7 @@ from pathlib import Path
 import random 
 import time
 
-IS_PAUSED = False
+IS_PAUSED = True
 
 if IS_PAUSED:
     st.title("停止中")
