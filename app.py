@@ -213,9 +213,9 @@ with st.sidebar:
     st.metric("現在の合計評価数", f"{total_count} 件")
     
     col_h, col_m, col_l = st.columns(3)
-    col_h.metric("高(★4-5)", f"{high_count}件")
-    col_m.metric("中(★3)", f"{mid_count}件")
-    col_l.metric("低(★1-2)", f"{low_count}件")
+    col_h.metric("高(★4-5)(計11件必要)", f"{high_count}件")
+    col_m.metric("中(★3)(計5個必要)", f"{mid_count}件")
+    col_l.metric("低(★1-2)(計4個必要)", f"{low_count}件")
 
     st.divider()
 
