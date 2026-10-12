@@ -44,10 +44,6 @@ if "search_kw" not in st.session_state:
 with open('movie.json', 'r', encoding='utf-8') as f:
     movie_data = json.load(f)
 
-# style_data_path = Path(__file__).resolve().parent.parent / "movie.json"
-# with style_data_path.open(encoding="utf-8") as f:
-    # style_data = json.load(f)
-
 for movie_key, details in movie_data.items():
     title = details.get("title", movie_key)
 
