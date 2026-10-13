@@ -309,9 +309,9 @@ with st.sidebar:
 
             st.caption("---")
 
-        if st.button("すべての評価をリセット", use_container_width=True, type="secondary"):
-            reset_all_ratings()
-            st.rerun()
+        # if st.button("すべての評価をリセット", use_container_width=True, type="secondary"):
+        #     reset_all_ratings()
+        #     st.rerun()
     else:
         st.info("まだ評価された映画はありません。")
 
