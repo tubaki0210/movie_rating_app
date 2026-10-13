@@ -353,8 +353,8 @@ with main_top_col2:
     if st.button("評価送信（確認へ）", type="primary", use_container_width=True, key="main_top_submit"):
         if not st.session_state.get("sidebar_user_id", "").strip():
             st.error("サイドバーでユーザーIDを入力してください。")
-        elif total_count == 0:
-            st.warning("評価（★）を1つ以上選択してください。")
+        # elif total_count == 0:
+            # st.warning("評価（★）を1つ以上選択してください。")
         else:
             confirm_submission_dialog(st.session_state.sidebar_user_id, ratings_dict)
 
