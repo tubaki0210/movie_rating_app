@@ -30,6 +30,12 @@ st.set_page_config(
 if "current_ratings" not in st.session_state:
     st.session_state.current_ratings = {}
 
+if "persisted_movie_ids" not in st.session_state:
+    st.session_state.persisted_movie_ids = set()
+
+if "deleted_movie_ids" not in st.session_state:
+    st.session_state.deleted_movie_ids = set()
+
 if "search_kw" not in st.session_state:
     st.session_state.search_kw = ""
 
@@ -70,8 +76,13 @@ def reset_all_ratings():
     for k in keys_to_delete:
         del st.session_state[k]
     st.session_state.current_ratings = {}
+    st.session_state.persisted_movie_ids = set()
+    st.session_state.deleted_movie_ids = set()
 
 def remove_single_rating(movie_id):
+    normalized_movie_id = int(movie_id)
+    if normalized_movie_id in st.session_state.persisted_movie_ids:
+        st.session_state.deleted_movie_ids.add(normalized_movie_id)
     st.session_state.current_ratings.pop(movie_id, None)
     st.session_state.pop(f"eval_{movie_id}", None)
     st.session_state.pop(f"sb_select_{movie_id}", None)
@@ -81,12 +92,15 @@ def update_rating_from_main(movie_id, movie_title):
     eval_key = f"eval_{movie_id}"
     score = st.session_state.get(eval_key)
     if score is not None:
+        st.session_state.deleted_movie_ids.discard(int(movie_id))
         st.session_state.current_ratings[movie_id] = {
             "title": movie_title,
             "rating": score
         }
         st.session_state[f"sb_select_{movie_id}"] = score
     else:
+        if int(movie_id) in st.session_state.persisted_movie_ids:
+            st.session_state.deleted_movie_ids.add(int(movie_id))
         st.session_state.current_ratings.pop(movie_id, None)
         st.session_state.pop(f"sb_select_{movie_id}", None)
 
@@ -95,6 +109,7 @@ def update_rating_from_sidebar(movie_id, movie_title):
     sb_key = f"sb_select_{movie_id}"
     score = st.session_state.get(sb_key)
     if score is not None:
+        st.session_state.deleted_movie_ids.discard(int(movie_id))
         st.session_state.current_ratings[movie_id] = {
             "title": movie_title,
             "rating": score
@@ -110,20 +125,27 @@ def submit_data(user_id, ratings):
             supabase_url = st.secrets["supabase"]["url"]
             supabase_key = st.secrets["supabase"]["key"]
             supabase: Client = create_client(supabase_url, supabase_key)
-                        
-            rows_to_insert = []
-            for movie_id, item in ratings.items():
-                rows_to_insert.append({
-                    "user_id": user_id,
-                    "movie_id": int(movie_id),
-                    "title": item["title"],
-                    "rating": int(item["rating"]),
-                })
             
-            response = supabase.table("ratings").upsert(
-                rows_to_insert, 
-                on_conflict="user_id,movie_id"
-            ).execute()
+            # Delete only ratings explicitly removed after restoring them.
+            movie_ids_to_delete = st.session_state.deleted_movie_ids
+            if movie_ids_to_delete:
+                supabase.table("ratings").delete().eq("user_id", user_id).in_("movie_id", list(movie_ids_to_delete)).execute()
+            
+            # 4. 手元にある評価をUPSERT（新規なら追加、既存なら最新に更新）
+            if ratings:
+                rows_to_upsert = []
+                for movie_id, item in ratings.items():
+                    rows_to_upsert.append({
+                        "user_id": user_id,
+                        "movie_id": int(movie_id),
+                        "title": item["title"],
+                        "rating": int(item["rating"]),
+                    })
+                
+                supabase.table("ratings").upsert(
+                    rows_to_upsert, 
+                    on_conflict="user_id,movie_id"
+                ).execute()
             
             st.session_state.show_completion_dialog = True
             st.rerun()
@@ -167,6 +189,7 @@ def restore_ratings(raw_user_id):
                 st.session_state[f"sb_select_{m_id}"] = score
 
             st.session_state.current_ratings = restored_dict
+            st.session_state.persisted_movie_ids = {int(row["movie_id"]) for row in data}
             st.sidebar.success(f"{len(restored_dict)}件の評価を復元しました！")
             time.sleep(0.5)
             st.rerun()
@@ -200,7 +223,7 @@ def confirm_submission_dialog(user_id, ratings):
     ])
     st.dataframe(preview_df, use_container_width=True, height=180)
     
-    st.warning("この内容で送信します。よろしいですか？（既存データと重複する作品は上書きされます）")
+    st.warning("この内容で送信します。よろしいですか？（同じ作品の評価は上書きされ、復元後に削除した評価だけが削除されます）")
     
     col_yes, col_no = st.columns(2)
     with col_yes:
