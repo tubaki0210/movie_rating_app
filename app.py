@@ -270,7 +270,7 @@ with st.sidebar:
 
     user_id = st.text_input("学籍番号(alの部分は小文字)", placeholder="例: al21114", key="sidebar_user_id")
 
-    if st.button("以前の評価を復元する", use_container_width=True, help="入力した学籍番号で既に送信したデータがあれば読み込みます"):
+    if st.button("これまでの評価を読み込む", use_container_width=True, help="入力した学籍番号で既に送信したデータがあれば読み込みます"):
         restore_ratings(user_id)
 
     st.divider()
