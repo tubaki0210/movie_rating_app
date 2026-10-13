@@ -8,7 +8,7 @@ import random
 import time
 from supabase import create_client, Client
 
-IS_PAUSED = False
+IS_PAUSED = True
 if IS_PAUSED:
     st.title("修正のため一時停止中")
     st.stop()  
