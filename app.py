@@ -8,7 +8,7 @@ import random
 import time
 from supabase import create_client, Client
 
-IS_PAUSED = True
+IS_PAUSED = False
 if IS_PAUSED:
     st.title("修正のため一時停止中")
     st.stop()  
@@ -25,31 +25,24 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# セッション状態の初期化（アプリ最上部で一括管理）
+# セッション状態の初期化
 # ---------------------------------------------------------
 if "current_ratings" not in st.session_state:
     st.session_state.current_ratings = {}
-
-if "global_reset_count" not in st.session_state:
-    st.session_state.global_reset_count = 0
-
-if "movie_reset_counters" not in st.session_state:
-    st.session_state.movie_reset_counters = {}
 
 if "search_kw" not in st.session_state:
     st.session_state.search_kw = ""
 
 # ---------------------------------------------------------
-# 1. JSONデータの読み込み & データ準備・ランダム順の固定化
+# 1. JSONデータの読み込み & アプリ起動時に一度だけシャッフルして固定
 # ---------------------------------------------------------
 with open('movie.json', 'r', encoding='utf-8') as f:
     movie_data = json.load(f)
 
-# セッションごとに一度だけ映画のキーをランダムにシャッフルして固定する
-if "shuffled_movie_keys" not in st.session_state:
+if "FIXED_SHUFFLED_KEYS" not in st.session_state:
     keys = list(movie_data.keys())
     random.shuffle(keys)
-    st.session_state.shuffled_movie_keys = keys
+    st.session_state.FIXED_SHUFFLED_KEYS = keys
 
 # ジャンルの抽出
 all_genres = set()
@@ -66,91 +59,52 @@ all_years = sorted(
 )
 years = ["すべて"] + all_years
 
-
-def hash_student_id(raw_id, salt_key):
-    """学籍番号を不可逆なハッシュIDに変換"""
-    if not raw_id:
-        return ""
-    clean_id = raw_id.strip().lower()
-    return hashlib.sha256(f"{clean_id}_{salt_key}".encode('utf-8')).hexdigest()[:12]
-
 # ---------------------------------------------------------
-# カウンター・リセット関連関数
+# リセット関連関数
 # ---------------------------------------------------------
-def get_movie_counter(movie_id):
-    return st.session_state.movie_reset_counters.get(movie_id, 0) + st.session_state.global_reset_count
-
-def increment_movie_counter(movie_id):
-    st.session_state.movie_reset_counters[movie_id] = st.session_state.movie_reset_counters.get(movie_id, 0) + 1
-
 def reset_all_ratings():
-    st.session_state.current_ratings = {}
-    st.session_state.global_reset_count += 1
-
     keys_to_delete = [
         k for k in list(st.session_state.keys()) 
-        if k.startswith("star_") or k.startswith("sb_select_")
+        if k.startswith("eval_") or k.startswith("sb_select_")
     ]
     for k in keys_to_delete:
         del st.session_state[k]
+    st.session_state.current_ratings = {}
 
 def remove_single_rating(movie_id):
     st.session_state.current_ratings.pop(movie_id, None)
-    increment_movie_counter(movie_id)
-    
-    keys_to_delete = [
-        k for k in list(st.session_state.keys()) 
-        if k.startswith(f"star_{movie_id}_") or k.startswith(f"sb_select_{movie_id}_")
-    ]
-    for k in keys_to_delete:
-        del st.session_state[k]
+    st.session_state.pop(f"eval_{movie_id}", None)
+    st.session_state.pop(f"sb_select_{movie_id}", None)
 
-# --- コールバック関数 ---
-def update_rating_from_main(movie_id, movie_title, star_key):
-    val = st.session_state.get(star_key)
-    if val is not None:
+# --- コールバック関数（メイン画面の評価変更用） ---
+def update_rating_from_main(movie_id, movie_title):
+    eval_key = f"eval_{movie_id}"
+    score = st.session_state.get(eval_key)
+    if score is not None:
         st.session_state.current_ratings[movie_id] = {
             "title": movie_title,
-            "rating": val + 1
+            "rating": score
         }
+        st.session_state[f"sb_select_{movie_id}"] = score
     else:
         st.session_state.current_ratings.pop(movie_id, None)
+        st.session_state.pop(f"sb_select_{movie_id}", None)
 
-def update_rating_from_sidebar(movie_id, movie_title, sb_key):
-    new_val = st.session_state.get(sb_key)
-    if new_val is not None:
+# --- コールバック関数（サイドバーの変更用） ---
+def update_rating_from_sidebar(movie_id, movie_title):
+    sb_key = f"sb_select_{movie_id}"
+    score = st.session_state.get(sb_key)
+    if score is not None:
         st.session_state.current_ratings[movie_id] = {
             "title": movie_title,
-            "rating": new_val
+            "rating": score
         }
-        increment_movie_counter(movie_id)
+        st.session_state[f"eval_{movie_id}"] = score
 
 # ---------------------------------------------------------
-# データ送信処理用関数
+# データ送信・復元処理用関数（Supabase版）
 # ---------------------------------------------------------
-# def submit_data(hashed_id, ratings):
-#     with st.spinner("データを送信中... しばらくお待ちください"):
-#         conn = st.connection("gsheets", type=GSheetsConnection)
-#         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        
-#         existing_data = conn.read(spreadsheet=sheet_url, ttl=0)
-#         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-#         new_rows = []
-#         for movie_id, item in ratings.items():
-#             new_rows.append({
-#                 "user_id": hashed_id,
-#                 "movie_id": movie_id,
-#                 "movie_title": item["title"],
-#                 "rating": item["rating"],
-#                 "timestamp": now
-#             })
-        
-#         new_df = pd.DataFrame(new_rows)
-#         updated_df = pd.concat([existing_data, new_df], ignore_index=True)
-#         conn.update(spreadsheet=sheet_url, data=updated_df)
-
-def submit_data(hashed_id, ratings):
+def submit_data(user_id, ratings):
     with st.spinner("データを送信中... しばらくお待ちください"):
         try:
             supabase_url = st.secrets["supabase"]["url"]
@@ -160,14 +114,12 @@ def submit_data(hashed_id, ratings):
             rows_to_insert = []
             for movie_id, item in ratings.items():
                 rows_to_insert.append({
-                    "user_id": hashed_id,
+                    "user_id": user_id,
                     "movie_id": int(movie_id),
                     "title": item["title"],
                     "rating": int(item["rating"]),
                 })
             
-            # .upsert() を使用し、競合が発生した場合は上書きする設定にする
-            # on_conflict="user_id,movie_id" でどの列が重複判定の基準になるかを指定
             response = supabase.table("ratings").upsert(
                 rows_to_insert, 
                 on_conflict="user_id,movie_id"
@@ -178,6 +130,50 @@ def submit_data(hashed_id, ratings):
             
         except Exception as e:
             st.error(f"データの送信に失敗しました: {e}")
+
+def restore_ratings(raw_user_id):
+    """Supabaseから指定した学籍番号の既存評価を読み込んで復元する"""
+    if not raw_user_id or not raw_user_id.strip():
+        st.sidebar.error("学籍番号を入力してください。")
+        return
+
+    with st.spinner("データを検索中..."):
+        try:
+            clean_id = raw_user_id.strip().lower()
+            
+            supabase_url = st.secrets["supabase"]["url"]
+            supabase_key = st.secrets["supabase"]["key"]
+            supabase: Client = create_client(supabase_url, supabase_key)
+            
+            response = supabase.table("ratings").select("movie_id, title, rating").eq("user_id", clean_id).execute()
+            data = response.data
+            
+            if not data:
+                st.sidebar.warning("該当する保存データが見つかりませんでした。")
+                return
+            
+            reset_all_ratings()
+            
+            restored_dict = {}
+            for row in data:
+                m_id = row["movie_id"]
+                score = row["rating"]
+                restored_dict[m_id] = {
+                    "title": row["title"],
+                    "rating": score
+                }
+                # メインのピルボタンとサイドバー双方のステートに直接数値を代入
+                st.session_state[f"eval_{m_id}"] = score
+                st.session_state[f"sb_select_{m_id}"] = score
+
+            st.session_state.current_ratings = restored_dict
+            st.sidebar.success(f"{len(restored_dict)}件の評価を復元しました！")
+            time.sleep(0.5)
+            st.rerun()
+            
+        except Exception as e:
+            st.sidebar.error(f"復元に失敗しました: {e}")
+
 # ---------------------------------------------------------
 # モーダルダイアログ定義
 # ---------------------------------------------------------
@@ -204,7 +200,7 @@ def confirm_submission_dialog(user_id, ratings):
     ])
     st.dataframe(preview_df, use_container_width=True, height=180)
     
-    st.warning("この内容で送信します。よろしいですか？")
+    st.warning("この内容で送信します。よろしいですか？（既存データと重複する作品は上書きされます）")
     
     col_yes, col_no = st.columns(2)
     with col_yes:
@@ -218,7 +214,6 @@ def confirm_submission_dialog(user_id, ratings):
         if st.button("送信しない", use_container_width=True):
             st.rerun()
 
-# 送信完了モーダルチェック
 if st.session_state.get("show_completion_dialog", False):
     completion_dialog()
 
@@ -252,6 +247,9 @@ with st.sidebar:
 
     user_id = st.text_input("学籍番号(alの部分は小文字)", placeholder="例: al21114", key="sidebar_user_id")
 
+    if st.button("以前の評価を復元する", use_container_width=True, help="入力した学籍番号で既に送信したデータがあれば読み込みます"):
+        restore_ratings(user_id)
+
     st.divider()
 
     if total_count > 0:
@@ -264,8 +262,10 @@ with st.sidebar:
             st.markdown(f"**{movie_name}**")
             
             sb_col1, sb_col2 = st.columns([3, 1])
-            counter = get_movie_counter(m_id)
-            sb_key = f"sb_select_{m_id}_{counter}"
+            sb_key = f"sb_select_{m_id}"
+            
+            if sb_key not in st.session_state:
+                st.session_state[sb_key] = score
             
             with sb_col1:
                 st.selectbox(
@@ -275,12 +275,12 @@ with st.sidebar:
                     format_func=lambda x: f"★{x} ({'高' if x>=4 else '中' if x==3 else '低'})",
                     key=sb_key,
                     on_change=update_rating_from_sidebar,
-                    args=(m_id, movie_name, sb_key),
+                    args=(m_id, movie_name),
                     label_visibility="collapsed"
                 )
 
             with sb_col2:
-                if st.button("🗑", key=f"del_{m_id}_{counter}", help="この評価を削除"):
+                if st.button("🗑", key=f"del_{m_id}", help="この評価を削除"):
                     remove_single_rating(m_id)
                     st.rerun()
 
@@ -299,7 +299,9 @@ st.title("映画の視聴履歴収集")
 
 st.info("""
 **【ご協力のおねがい】**\n 
-始めにサイドバーで学籍番号を入力しておいてください。\n 
+始める時はサイドバーで学籍番号を入力しておいてください。\n 
+以前登録した評価を復元したい場合は、学籍番号入力後「以前の評価を復元する」を押してください。\n
+※途中から再開する場合は、学籍番号を入力して**「以前の評価を復元する」**ボタンを押すと、前回までの評価が読み込まれます。\n\n
 検索やジャンル・邦画/洋画・年代での絞り込みを使い、見たことある映画に評価（★1〜5）をつけてください。\n
 評価はできる限り多くしていただけると助かりますが、少なくても以下の数だけ評価していただきたいです。\n
 もし、必要数だけ評価できなくても、結果は送信してください。
@@ -317,10 +319,9 @@ st.info("""
 - (★2): やや期待外れだった
 - (★1): 期待外れだった  
 
-・評価値の変更はサイドバーでも行えます。評価の削除は★マークをもう一度押すかサイドバーでも行えます。作業終了後は「評価送信」ボタンを押して結果を送信してください\n
+・評価値の変更はサイドバーでも行えます。評価の削除はサイドバーのゴミ箱ボタンから行えます。作業終了後は「評価送信」ボタンを押して結果を送信してください\n
 ・「映画タイトルで検索」では入力後、Enterまたは検索ボタンを押すことで検索できます。ジャンルと邦画・洋画の絞り込みは変更後に自動で反映されます。\n
-・「さらに表示する」で多く(1000件以上)表示すると、重くなりますので表示しすぎないように検索を活用してください。
-
+・多く表示しすぎないように検索を活用してください。
 """)
 
 main_top_col1, main_top_col2 = st.columns([3, 1])
@@ -374,11 +375,10 @@ if st.session_state.get("last_filter") != filter_state_key:
     st.session_state.last_filter = filter_state_key
 
 # ---------------------------------------------------------
-# フィルタリング処理（ランダム順のキーを使用）
+# フィルタリング処理（固定されたシャッフル順を使用）
 # ---------------------------------------------------------
 filtered_movies = []
-# 👇 JSONの元の順番ではなく、シャッフルされた順序のキーでループを回す
-for title_key in st.session_state.shuffled_movie_keys:
+for title_key in st.session_state.FIXED_SHUFFLED_KEYS:
     details = movie_data[title_key]
     m_id = details.get("movie_id")
     title = details.get("title", "")
@@ -401,7 +401,8 @@ st.subheader(f"映画一覧（該当: {len(filtered_movies)}件 / 表示中: {le
 if not filtered_movies:
     st.warning("該当する映画が見つかりませんでした。")
 
-# 映画リストの表示と評価UI
+# 映画リストの表示と評価UI（st.pills を用いた完全同期型のボタン評価）
+# 修正後
 for movie in display_movies:
     c1, c2 = st.columns([1, 1])
     movie_id = movie.get("movie_id")
@@ -411,23 +412,20 @@ for movie in display_movies:
         st.write(f"・**{title}**")
         
     with c2:
-        counter = get_movie_counter(movie_id)
-        star_key = f"star_{movie_id}_{counter}"
+        eval_key = f"eval_{movie_id}"
         
         current_item = st.session_state.current_ratings.get(movie_id)
-        current_score = current_item["rating"] if current_item else None
-        
-        if current_score is not None and star_key not in st.session_state:
-            st.session_state[star_key] = current_score - 1
+        st.session_state[eval_key] = current_item["rating"] if current_item else None
 
-        st.feedback(
-            "stars",
-            key=star_key,
+        st.pills(
+            label=f"{title}の評価",
+            options=[5, 4, 3, 2, 1],
+            format_func=lambda x: f"★{x}",
+            key=eval_key,
             on_change=update_rating_from_main,
-            args=(movie_id, title, star_key)
+            args=(movie_id, title),
+            label_visibility="collapsed"
         )
-    # st.divider()
-    
 
 # --- 「もっと見る」ボタン ---
 remaining_count = len(filtered_movies) - len(display_movies)
